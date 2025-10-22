@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IndexedDB Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      .section {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      input {
+        padding: 8px;
+        margin: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      #output {
+        background-color: #f5f5f5;
+        padding: 15px;
+        border-radius: 4px;
+        min-height: 100px;
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
+      h1 {
+        color: #333;
+      }
+      h2 {
+        color: #666;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>IndexedDB Library Demo</h1>
+
+    <div class="section">
+      <h2>Database Control</h2>
+      <button onclick="initDB()">Initialize Database</button>
+      <button onclick="closeDB()">Close Database</button>
+      <button onclick="deleteDB()">Delete Database</button>
+    </div>
+
+    <div class="section">
+      <h2>Add User</h2>
+      <input type="text" id="userName" placeholder="Name" />
+      <input type="email" id="userEmail" placeholder="Email" />
+      <input type="number" id="userAge" placeholder="Age" />
+      <input type="text" id="userCity" placeholder="City" />
+      <button onclick="addUser()">Add User</button>
+    </div>
+
+    <div class="section">
+      <h2>Query Users</h2>
+      <button onclick="getAllUsers()">Get All Users</button>
+      <button onclick="getUserById()">Get User by ID (1)</button>
+      <button onclick="getUsersByCity()">Get Users by City</button>
+      <button onclick="getYoungUsers()">Get Users Under 30</button>
+      <button onclick="countUsers()">Count Users</button>
+    </div>
+
+    <div class="section">
+      <h2>Update/Delete</h2>
+      <input type="number" id="updateId" placeholder="User ID" />
+      <input type="text" id="updateName" placeholder="New Name" />
+      <button onclick="updateUser()">Update User</button>
+      <button onclick="deleteUser()">Delete User</button>
+      <button onclick="clearAll()">Clear All Users</button>
+    </div>
+
+    <div class="section">
+      <h2>Output</h2>
+      <div id="output">Database not initialized...</div>
+    </div>
+
+    <script src="./dist/browser-bundle.js"></script>
+    <script>
+      let db = null;
+
+      // Make functions global for onclick handlers
+      window.initDB = initDB;
+      window.closeDB = closeDB;
+      window.deleteDB = deleteDB;
+      window.addUser = addUser;
+      window.getAllUsers = getAllUsers;
+      window.getUserById = getUserById;
+      window.getUsersByCity = getUsersByCity;
+      window.getYoungUsers = getYoungUsers;
+      window.countUsers = countUsers;
+      window.updateUser = updateUser;
+      window.deleteUser = deleteUser;
+      window.clearAll = clearAll;
+
+      function log(message) {
+        const output = document.getElementById('output');
+        const timestamp = new Date().toLocaleTimeString();
+        output.textContent = `[${timestamp}] ${JSON.stringify(message, null, 2)}\n\n${output.textContent}`;
+      }
+
+      async function initDB() {
+        try {
+          db = new IndexedDatabase({
+            dbName: 'demoApp',
+            version: 1,
+            stores: [
+              {
+                name: 'users',
+                keyPath: 'id',
+                autoIncrement: true,
+                indexes: [
+                  { name: 'email', keyPath: 'email', unique: true },
+                  { name: 'age', keyPath: 'age' },
+                  { name: 'city', keyPath: 'city' },
+                ],
+              },
+            ],
+          });
+
+          await db.open();
+          log('✅ Database initialized successfully!');
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      function closeDB() {
+        if (db) {
+          db.close();
+          db = null;
+          log('Database closed');
+        } else {
+          log('No database to close');
+        }
+      }
+
+      async function deleteDB() {
+        try {
+          if (db) {
+            db.close();
+            db = null;
+          }
+          await IndexedDatabase.deleteDatabase('demoApp');
+          log('✅ Database deleted successfully!');
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function addUser() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const name = document.getElementById('userName').value;
+          const email = document.getElementById('userEmail').value;
+          const age = parseInt(document.getElementById('userAge').value);
+          const city = document.getElementById('userCity').value;
+
+          if (!name || !email || !age || !city) {
+            log('⚠️ Please fill all fields');
+            return;
+          }
+
+          const id = await db.add('users', { name, email, age, city });
+          log({ message: '✅ User added', id, user: { name, email, age, city } });
+
+          // Clear inputs
+          document.getElementById('userName').value = '';
+          document.getElementById('userEmail').value = '';
+          document.getElementById('userAge').value = '';
+          document.getElementById('userCity').value = '';
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function getAllUsers() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const users = await db.getAll('users');
+          log({ message: '📋 All users', count: users.length, users });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function getUserById() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const user = await db.get('users', 1);
+          log({ message: '👤 User by ID (1)', user });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function getUsersByCity() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const city = prompt('Enter city name:', 'New York');
+          if (city) {
+            const users = await db.getAllByIndex('users', 'city', city);
+            log({ message: `🏙️ Users in ${city}`, count: users.length, users });
+          }
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function getYoungUsers() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const users = await db.getAllByIndex('users', 'age', createKeyRange.lessThan(30));
+          log({ message: '👶 Users under 30', count: users.length, users });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function countUsers() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const count = await db.count('users');
+          log({ message: '🔢 Total users', count });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function updateUser() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const id = parseInt(document.getElementById('updateId').value);
+          const name = document.getElementById('updateName').value;
+
+          if (!id || !name) {
+            log('⚠️ Please provide ID and name');
+            return;
+          }
+
+          // Get existing user
+          const user = await db.get('users', id);
+          if (!user) {
+            log('❌ User not found');
+            return;
+          }
+
+          // Update name
+          user.name = name;
+          await db.put('users', user);
+          log({ message: '✅ User updated', user });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function deleteUser() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          const id = parseInt(document.getElementById('updateId').value);
+          if (!id) {
+            log('⚠️ Please provide user ID');
+            return;
+          }
+
+          await db.delete('users', id);
+          log({ message: '✅ User deleted', id });
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      async function clearAll() {
+        if (!db) {
+          log('⚠️ Please initialize database first');
+          return;
+        }
+
+        try {
+          if (confirm('Are you sure you want to delete all users?')) {
+            await db.clear('users');
+            log('✅ All users cleared');
+          }
+        } catch (error) {
+          log('❌ Error: ' + error.message);
+        }
+      }
+
+      // Auto-initialize on load
+      window.addEventListener('load', () => {
+        log('Welcome! Click "Initialize Database" to start.');
+      });
+    </script>
+  </body>
+</html>
