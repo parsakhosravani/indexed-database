@@ -38,9 +38,9 @@ export const createKeyRange = {
    * Create a range for values starting with a prefix (useful for strings)
    */
   startsWith(prefix: string): IDBKeyRange {
-    // '￿' sorts after every other character, so this matches any string
+    // '\uffff' sorts after every other character, so this matches any string
     // beginning with `prefix` (and works for an empty prefix too)
-    return IDBKeyRange.bound(prefix, prefix + '￿', false, false);
+    return IDBKeyRange.bound(prefix, prefix + '\uffff', false, false);
   },
 
   /**
