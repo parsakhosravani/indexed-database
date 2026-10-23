@@ -5,11 +5,18 @@
  * - Promise-based API
  * - Type-safe operations
  * - Advanced querying with cursors
- * - Transaction management
+ * - Transaction management and bulk writes
+ * - Safe schema upgrades (new stores and indexes)
  */
 
 export { IndexedDatabase } from './database';
 export * from './types';
 
 // Utility functions
-export { createKeyRange } from './utils';
+export {
+  createKeyRange,
+  isIndexedDBSupported,
+  listDatabases,
+  exportStore,
+  importStore,
+} from './utils';

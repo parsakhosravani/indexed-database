@@ -26,35 +26,41 @@ export class IndexedDatabase {
         reject(new Error(`Failed to open database: ${request.error?.message}`));
       };
 
+      request.onblocked = () => {
+        reject(
+          new Error(
+            `Opening "${this.dbName}" v${this.version} is blocked: close other tabs using an older version`
+          )
+        );
+      };
+
       request.onsuccess = () => {
         this.db = request.result;
+        // Let a newer version in another tab upgrade instead of blocking it forever
+        this.db.onversionchange = () => this.close();
         resolve();
       };
 
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        this.handleUpgrade(db, event.oldVersion);
+      request.onupgradeneeded = () => {
+        const upgradeTx = request.transaction;
+        if (!upgradeTx) return;
+        this.handleUpgrade(request.result, upgradeTx);
       };
     });
   }
 
   /**
-   * Handle database upgrade - create stores and indexes
+   * Handle database upgrade: create new stores and add any new indexes to
+   * existing stores (through the version-change transaction).
    */
-  private handleUpgrade(db: IDBDatabase, oldVersion: number): void {
+  private handleUpgrade(db: IDBDatabase, upgradeTx: IDBTransaction): void {
     this.stores.forEach((storeConfig) => {
-      let objectStore: IDBObjectStore;
-
-      // Create store if it doesn't exist
-      if (!db.objectStoreNames.contains(storeConfig.name)) {
-        objectStore = db.createObjectStore(storeConfig.name, {
-          keyPath: storeConfig.keyPath,
-          autoIncrement: storeConfig.autoIncrement,
-        });
-      } else {
-        // Note: Can't modify existing store during upgrade without transaction
-        return;
-      }
+      const objectStore = db.objectStoreNames.contains(storeConfig.name)
+        ? upgradeTx.objectStore(storeConfig.name)
+        : db.createObjectStore(storeConfig.name, {
+            keyPath: storeConfig.keyPath,
+            autoIncrement: storeConfig.autoIncrement,
+          });
 
       // Create indexes
       if (storeConfig.indexes) {
@@ -117,6 +123,61 @@ export class IndexedDatabase {
   async put<T>(storeName: string, value: T, key?: IDBValidKey): Promise<IDBValidKey> {
     const store = this.getStore(storeName, 'readwrite');
     return this.promisifyRequest(store.put(value, key));
+  }
+
+  /**
+   * Insert or update many records in one transaction. Either all are written
+   * or none are (the transaction is rolled back on the first error).
+   */
+  async bulkPut<T>(storeName: string, values: T[]): Promise<IDBValidKey[]> {
+    if (!this.db) {
+      throw new Error('Database not opened');
+    }
+    const tx = this.db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    const keys: IDBValidKey[] = new Array(values.length);
+
+    return new Promise((resolve, reject) => {
+      values.forEach((value, i) => {
+        const req = store.put(value);
+        req.onsuccess = () => {
+          keys[i] = req.result;
+        };
+      });
+      tx.oncomplete = () => resolve(keys);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
+    });
+  }
+
+  /**
+   * Delete many records by key in one transaction
+   */
+  async bulkDelete(storeName: string, keys: IDBValidKey[]): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not opened');
+    }
+    const tx = this.db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+
+    return new Promise((resolve, reject) => {
+      keys.forEach((key) => store.delete(key));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
+    });
+  }
+
+  /**
+   * Get the first record matching an index value (e.g. find a user by email)
+   */
+  async getByIndex<T>(
+    storeName: string,
+    indexName: string,
+    query: IDBValidKey | IDBKeyRange
+  ): Promise<T | undefined> {
+    const store = this.getStore(storeName, 'readonly');
+    return this.promisifyRequest(store.index(indexName).get(query));
   }
 
   /**

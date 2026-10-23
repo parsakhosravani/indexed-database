@@ -9,12 +9,16 @@ A modern, TypeScript-first wrapper for IndexedDB providing a clean, promise-base
 - 🚀 **Simple**: Intuitive API that abstracts IndexedDB complexity
 - 🔍 **Advanced querying**: Support for indexes, cursors, and key ranges
 - 💾 **Transaction support**: Execute multiple operations atomically
+- 📥 **Bulk writes**: `bulkPut` / `bulkDelete` run in one transaction, so all records are written or none are
+- 🧬 **Safe schema upgrades**: bump the version to add stores *and* new indexes to existing stores; other tabs on the old version close cleanly instead of blocking you
 - 📦 **Zero dependencies**: Lightweight and self-contained
 
 ## Installation
 
+Install straight from GitHub (it builds on install):
+
 ```bash
-npm install indexed-database
+npm install github:parsakhosravani/indexed-database
 ```
 
 ## Quick Start
@@ -106,7 +110,30 @@ Clear all records from a store.
 
 Count records in a store.
 
+#### `bulkPut<T>(storeName: string, values: T[]): Promise<IDBValidKey[]>`
+
+Insert or update many records in one transaction and get their keys back. If any write fails (for example, a unique index clash), nothing is saved.
+
+```typescript
+const ids = await db.bulkPut('users', [
+  { name: 'Ana', email: 'ana@test.com', age: 31 },
+  { name: 'Ben', email: 'ben@test.com', age: 27 },
+]);
+```
+
+#### `bulkDelete(storeName: string, keys: IDBValidKey[]): Promise<void>`
+
+Delete many records by key in one transaction.
+
 ### Advanced Querying
+
+#### `getByIndex<T>(storeName: string, indexName: string, query: IDBValidKey | IDBKeyRange): Promise<T | undefined>`
+
+Get the first record matching an index value, such as a user by email.
+
+```typescript
+const alice = await db.getByIndex('users', 'email', 'alice@test.com');
+```
 
 #### `getAllByIndex<T>(storeName: string, indexName: string, query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]>`
 
@@ -134,11 +161,12 @@ const sorted = await db.query('users', { index: 'age', direction: 'next' });
 
 Execute multiple operations in a single transaction.
 
+Use the stores passed to the callback, so every write belongs to the same transaction. If the callback throws, the whole transaction is rolled back.
+
 ```typescript
-await db.transaction(['users', 'posts'], 'readwrite', async (tx, [usersStore, postsStore]) => {
-  // Multiple operations in one transaction
-  await db.add('users', { name: 'Bob' });
-  await db.add('posts', { userId: 1, content: 'Hello' });
+await db.transaction(['users', 'posts'], 'readwrite', async (tx, [users, posts]) => {
+  users.add({ name: 'Bob', email: 'bob@test.com', age: 30 });
+  posts.add({ userId: 1, content: 'Hello' });
 });
 ```
 
@@ -162,20 +190,20 @@ const alices = await db.getAllByIndex('users', 'email', createKeyRange.startsWit
 ### Import/Export
 
 ```typescript
-import { exportStore, importStore } from 'indexed-database/utils';
-
-// Export data
-const data = await exportStore(db.db, 'users');
+// Export a store
+const data = await db.getAll('users');
 localStorage.setItem('backup', JSON.stringify(data));
 
-// Import data
-const backup = JSON.parse(localStorage.getItem('backup'));
-await importStore(db.db, 'users', backup);
+// Import it again in one transaction
+const backup = JSON.parse(localStorage.getItem('backup') ?? '[]');
+await db.bulkPut('users', backup);
 ```
+
+If you already have a raw `IDBDatabase`, `exportStore(idb, store)` and `importStore(idb, store, data)` are exported too.
 
 ## Schema Migrations
 
-To upgrade your database schema, increment the version number:
+To upgrade your database schema, increment the version number. New stores are created, and new indexes are added to existing stores. Existing data is kept and indexed automatically.
 
 ```typescript
 const db = new IndexedDatabase({
@@ -199,6 +227,16 @@ const db = new IndexedDatabase({
     },
   ],
 });
+```
+
+If another tab still has the old version open, that tab's connection closes itself so the upgrade can go ahead. If the upgrade is still blocked, `open()` rejects with a clear error instead of hanging.
+
+## Development
+
+```bash
+npm install
+npm test        # Jest + fake-indexeddb
+npm run build   # outputs dist/
 ```
 
 ## Browser Support

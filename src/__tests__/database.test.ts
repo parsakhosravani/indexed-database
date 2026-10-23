@@ -32,10 +32,12 @@ describe('IndexedDatabase', () => {
     await db.open();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     if (db.isOpen()) {
       db.close();
     }
+    // Start every test from an empty database
+    await IndexedDatabase.deleteDatabase('testDB');
   });
 
   describe('Database Operations', () => {
