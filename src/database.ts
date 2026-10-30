@@ -230,7 +230,7 @@ export class IndexedDatabase {
       const offset = options.offset || 0;
       const limit = options.limit;
 
-      const request = source.openCursor(null, options.direction);
+      const request = source.openCursor(options.range ?? null, options.direction);
 
       request.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
@@ -310,7 +310,7 @@ export class IndexedDatabase {
     return new Promise((resolve, reject) => {
       tx.oncomplete = () => resolve(result);
       tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(new Error('Transaction aborted'));
+      tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
 
       let result: T;
       callback(tx, stores)

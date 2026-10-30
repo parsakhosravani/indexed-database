@@ -1,5 +1,7 @@
 node_modules/
 dist/
+site/lib/
+.vercel/
 *.log
 .DS_Store
 coverage/

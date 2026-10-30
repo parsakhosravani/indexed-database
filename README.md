@@ -13,6 +13,10 @@ A modern, TypeScript-first wrapper for IndexedDB providing a clean, promise-base
 - 🧬 **Safe schema upgrades**: bump the version to add stores *and* new indexes to existing stores; other tabs on the old version close cleanly instead of blocking you
 - 📦 **Zero dependencies**: Lightweight and self-contained
 
+## Playground
+
+Try it in the browser with the interactive playground in [`site/`](site/index.html): seed data, edit records, and build index and key-range queries against a real IndexedDB database. Run it locally with `npm run build:site && npx serve site`.
+
 ## Installation
 
 Install straight from GitHub (it builds on install):
@@ -153,6 +157,14 @@ const adults = await db.query('users', {}, (user) => user.age >= 18);
 
 // Query using an index
 const sorted = await db.query('users', { index: 'age', direction: 'next' });
+
+// Only visit part of an index, oldest first, 5 at a time
+const thirties = await db.query('users', {
+  index: 'age',
+  range: createKeyRange.between(30, 39),
+  direction: 'prev',
+  limit: 5,
+});
 ```
 
 ### Transactions
