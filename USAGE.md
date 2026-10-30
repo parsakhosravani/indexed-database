@@ -13,30 +13,21 @@ npm run build
 
 This creates the compiled JavaScript in the `dist/` folder.
 
-### 2. Using in Browser (Demo)
+### 2. Playground
 
-Open the included `demo.html` file in your browser:
-
-```bash
-# Serve the files with a local server
-npx serve .
-# Then open http://localhost:3000/demo.html
-```
-
-Or use Python:
+The `site/` folder is an interactive playground (the same page that's deployed to Vercel). Bundle the library into it and serve it:
 
 ```bash
-python3 -m http.server 8000
-# Then open http://localhost:8000/demo.html
+npm run build:site
+npx serve site
+# Then open http://localhost:3000
 ```
 
-**The demo lets you:**
+**The playground lets you:**
 
-- Initialize/close/delete the database
-- Add users with name, email, age, city
-- Query all users or filter by criteria
-- Update and delete users
-- See real-time output of all operations
+- Seed, add, edit and delete users in a real IndexedDB database
+- Build queries against the primary key or any index, with key ranges, direction, limit and offset
+- See the library call each action makes
 
 ### 3. Using in Your Project
 
@@ -112,9 +103,9 @@ const adults = await db.query<User>('users', { limit: 10 }, (user) => user.age >
 
 ```typescript
 await db.transaction(['users'], 'readwrite', async (tx, [store]) => {
-  // Multiple operations happen atomically
-  await db.add('users', { name: 'Bob', email: 'bob@example.com', age: 25 });
-  await db.add('users', { name: 'Carol', email: 'carol@example.com', age: 28 });
+  // Use the stores you're given: db.add() would open its own transaction
+  store.add({ name: 'Bob', email: 'bob@example.com', age: 25 });
+  store.add({ name: 'Carol', email: 'carol@example.com', age: 28 });
 });
 ```
 
@@ -164,9 +155,9 @@ Check the `examples/` folder:
 
 - Make sure to call `await db.open()` before any operations
 
-**CORS errors with demo.html**
+**CORS errors with the playground**
 
-- Don't open the file directly (file://). Use a local server instead
+- Don't open `site/index.html` directly (file://). Use a local server instead
 
 **Module import errors**
 

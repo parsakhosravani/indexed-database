@@ -155,6 +155,46 @@ describe('schema upgrades', () => {
   });
 });
 
+describe('query with a range', () => {
+  test('only visits index values inside the range, then applies offset and limit', async () => {
+    const db = new IndexedDatabase({
+      dbName: DB,
+      stores: [
+        {
+          name: 'notes',
+          keyPath: 'id',
+          autoIncrement: true,
+          indexes: [{ name: 'title', keyPath: 'title' }],
+        },
+      ],
+    });
+    await db.open();
+    await db.bulkPut<Note>('notes', [
+      { title: 'a', tag: '' },
+      { title: 'b', tag: '' },
+      { title: 'c', tag: '' },
+      { title: 'd', tag: '' },
+      { title: 'e', tag: '' },
+    ]);
+
+    const inRange = await db.query<Note>('notes', {
+      index: 'title',
+      range: createKeyRange.between('b', 'e'),
+      offset: 1,
+      limit: 2,
+    });
+    expect(inRange.map((n) => n.title)).toEqual(['c', 'd']);
+
+    const reversed = await db.query<Note>('notes', {
+      index: 'title',
+      range: createKeyRange.lessThan('c'),
+      direction: 'prev',
+    });
+    expect(reversed.map((n) => n.title)).toEqual(['b', 'a']);
+    db.close();
+  });
+});
+
 describe('createKeyRange.startsWith', () => {
   test('matches strings with the prefix and nothing else', async () => {
     const db = new IndexedDatabase({

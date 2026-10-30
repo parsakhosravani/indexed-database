@@ -106,6 +106,7 @@ export async function importStore<T>(db: IDBDatabase, storeName: string, data: T
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error ?? new Error('Transaction aborted'));
 
     data.forEach((item) => {
       store.put(item);

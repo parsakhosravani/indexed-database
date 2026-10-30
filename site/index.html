@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>indexed-database playground</title>
+    <meta
+      name="description"
+      content="A live playground for indexed-database, a typed, promise-based IndexedDB wrapper. Add records, run index and key-range queries, and see the code."
+    />
+    <style>
+      :root {
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --surface-2: #f0f0ed;
+        --border: #e2e2dd;
+        --text: #1c1c1a;
+        --muted: #6b6b66;
+        --accent: #3b5bdb;
+        --accent-soft: #e7ecff;
+        --danger: #c92a2a;
+        --ok: #2b8a3e;
+        --code-bg: #f3f3f0;
+        --radius: 10px;
+        --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #121212;
+          --surface: #1b1b1b;
+          --surface-2: #242424;
+          --border: #2f2f2f;
+          --text: #ececec;
+          --muted: #9a9a95;
+          --accent: #8ea4ff;
+          --accent-soft: #232b48;
+          --danger: #ff8787;
+          --ok: #69db7c;
+          --code-bg: #161616;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      a {
+        color: var(--accent);
+      }
+      .wrap {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header {
+        padding: 48px 0 28px;
+      }
+      header h1 {
+        margin: 0 0 6px;
+        font-size: 30px;
+        letter-spacing: -0.02em;
+      }
+      header p {
+        margin: 0 0 18px;
+        color: var(--muted);
+        max-width: 640px;
+      }
+      .header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .install {
+        font-family: var(--mono);
+        font-size: 13px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        overflow-x: auto;
+        max-width: 100%;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 16px;
+        align-items: start;
+        padding-bottom: 48px;
+      }
+      @media (max-width: 860px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+        min-width: 0;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+        min-width: 0;
+      }
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      input,
+      select {
+        width: 100%;
+        font: inherit;
+        color: var(--text);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 7px 9px;
+      }
+      input:focus,
+      select:focus,
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .fields .full {
+        grid-column: 1 / -1;
+      }
+      button {
+        font: inherit;
+        font-size: 14px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        padding: 7px 12px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--muted);
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--surface);
+      }
+      button.danger {
+        color: var(--danger);
+      }
+      button.link {
+        border: none;
+        background: none;
+        padding: 2px 6px;
+        font-size: 13px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 500;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .dot.on {
+        background: var(--ok);
+      }
+      .schema {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .schema li {
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--border);
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .schema li:last-child {
+        border-bottom: none;
+      }
+      .tag {
+        font-size: 11px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 999px;
+        padding: 1px 8px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+      td.num {
+        font-variant-numeric: tabular-nums;
+      }
+      td input {
+        padding: 3px 6px;
+        min-width: 80px;
+      }
+      .empty {
+        color: var(--muted);
+        text-align: center;
+        padding: 28px 8px;
+      }
+      .query-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      @media (max-width: 560px) {
+        .query-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      pre.code {
+        margin: 12px 0 0;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        font: 12.5px/1.6 var(--mono);
+        overflow-x: auto;
+      }
+      .meta {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 12px 0 6px;
+      }
+      #log {
+        font: 12.5px/1.6 var(--mono);
+        max-height: 220px;
+        overflow-y: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      #log li {
+        padding: 3px 0;
+        border-bottom: 1px solid var(--border);
+        overflow-wrap: anywhere;
+      }
+      #log .err {
+        color: var(--danger);
+      }
+      #log time {
+        color: var(--muted);
+        margin-right: 8px;
+      }
+      .hidden {
+        display: none;
+      }
+      footer {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 0 0 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>indexed-database</h1>
+        <p>
+          A small, typed, promise-based wrapper for IndexedDB. Everything below runs against a real
+          IndexedDB database in your browser, using the library itself.
+        </p>
+        <div class="header-row">
+          <code class="install">npm install github:parsakhosravani/indexed-database</code>
+          <a href="https://github.com/parsakhosravani/indexed-database">GitHub →</a>
+        </div>
+      </header>
+
+      <main class="grid">
+        <div class="stack">
+          <section class="card">
+            <h2>
+              Database
+              <span class="status"><span class="dot" id="dot"></span><span id="status">closed</span></span>
+            </h2>
+            <ul class="schema">
+              <li><span>db: playground · v1</span></li>
+              <li><span>store: users</span><span class="tag">keyPath id · auto</span></li>
+              <li><span>index: email</span><span class="tag">unique</span></li>
+              <li><span>index: age</span></li>
+              <li><span>index: city</span></li>
+            </ul>
+            <div class="row">
+              <button id="seed" class="primary">Seed sample data</button>
+              <button id="clear">Clear store</button>
+              <button id="drop" class="danger">Delete database</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Add a user</h2>
+            <form id="add-form" class="fields">
+              <div class="full">
+                <label for="f-name">Name</label>
+                <input id="f-name" required autocomplete="off" />
+              </div>
+              <div class="full">
+                <label for="f-email">Email</label>
+                <input id="f-email" type="email" required autocomplete="off" />
+              </div>
+              <div>
+                <label for="f-age">Age</label>
+                <input id="f-age" type="number" min="0" max="150" required />
+              </div>
+              <div>
+                <label for="f-city">City</label>
+                <input id="f-city" required autocomplete="off" />
+              </div>
+              <div class="full">
+                <button class="primary" type="submit">Add</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Activity</h2>
+            <ul id="log"></ul>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section class="card">
+            <h2>Records <span class="status" id="count"></span></h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>id</th>
+                    <th>name</th>
+                    <th>email</th>
+                    <th>age</th>
+                    <th>city</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Query</h2>
+            <form id="query-form">
+              <div class="query-grid">
+                <div>
+                  <label for="q-index">Source</label>
+                  <select id="q-index">
+                    <option value="">primary key (id)</option>
+                    <option value="email">index: email</option>
+                    <option value="age" selected>index: age</option>
+                    <option value="city">index: city</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="q-range">Range</label>
+                  <select id="q-range">
+                    <option value="all">all</option>
+                    <option value="only">only</option>
+                    <option value="lessThan" selected>lessThan</option>
+                    <option value="greaterThan">greaterThan</option>
+                    <option value="between">between</option>
+                    <option value="startsWith">startsWith</option>
+                  </select>
+                </div>
+                <div id="q-a-wrap">
+                  <label for="q-a">Value</label>
+                  <input id="q-a" value="30" />
+                </div>
+                <div id="q-b-wrap" class="hidden">
+                  <label for="q-b">and</label>
+                  <input id="q-b" />
+                </div>
+                <div>
+                  <label for="q-dir">Direction</label>
+                  <select id="q-dir">
+                    <option value="next">next</option>
+                    <option value="prev">prev</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="q-limit">Limit</label>
+                  <input id="q-limit" type="number" min="0" placeholder="none" />
+                </div>
+                <div>
+                  <label for="q-offset">Offset</label>
+                  <input id="q-offset" type="number" min="0" placeholder="0" />
+                </div>
+              </div>
+              <div class="row">
+                <button class="primary" type="submit">Run query</button>
+              </div>
+            </form>
+            <pre class="code" id="q-code"></pre>
+            <p class="meta" id="q-meta"></p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>id</th>
+                    <th>name</th>
+                    <th>email</th>
+                    <th>age</th>
+                    <th>city</th>
+                  </tr>
+                </thead>
+                <tbody id="q-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer>
+        Data stays in this browser's IndexedDB. MIT licensed ·
+        <a href="https://github.com/parsakhosravani/indexed-database#readme">Docs</a>
+      </footer>
+    </div>
+
+    <script type="module">
+      import { IndexedDatabase, createKeyRange, isIndexedDBSupported } from './lib/indexed-database.js';
+
+      const DB_NAME = 'playground';
+      const config = {
+        dbName: DB_NAME,
+        version: 1,
+        stores: [
+          {
+            name: 'users',
+            keyPath: 'id',
+            autoIncrement: true,
+            indexes: [
+              { name: 'email', keyPath: 'email', unique: true },
+              { name: 'age', keyPath: 'age' },
+              { name: 'city', keyPath: 'city' },
+            ],
+          },
+        ],
+      };
+
+      const SAMPLE = [
+        ['Ada Lovelace', 'ada@example.com', 36, 'London'],
+        ['Alan Turing', 'alan@example.com', 41, 'London'],
+        ['Grace Hopper', 'grace@example.com', 85, 'New York'],
+        ['Linus Torvalds', 'linus@example.com', 28, 'Helsinki'],
+        ['Margaret Hamilton', 'margaret@example.com', 33, 'Boston'],
+        ['Katherine Johnson', 'katherine@example.com', 22, 'Hampton'],
+        ['Tim Berners-Lee', 'tim@example.com', 34, 'Geneva'],
+        ['Barbara Liskov', 'barbara@example.com', 29, 'Boston'],
+        ['Dennis Ritchie', 'dennis@example.com', 30, 'New York'],
+        ['Radia Perlman', 'radia@example.com', 24, 'Boston'],
+      ].map(([name, email, age, city]) => ({ name, email, age, city }));
+
+      const $ = (id) => document.getElementById(id);
+      let db = null;
+
+      function log(message, isError = false) {
+        const li = document.createElement('li');
+        if (isError) li.className = 'err';
+        const time = document.createElement('time');
+        time.textContent = new Date().toLocaleTimeString();
+        li.append(time, document.createTextNode(message));
+        $('log').prepend(li);
+      }
+
+      function setStatus(open) {
+        $('dot').classList.toggle('on', open);
+        $('status').textContent = open ? 'open' : 'closed';
+      }
+
+      async function run(label, fn) {
+        try {
+          return await fn();
+        } catch (err) {
+          log(`${label} failed: ${err?.message || err}`, true);
+        }
+      }
+
+      async function open() {
+        db = new IndexedDatabase(config);
+        await db.open();
+        setStatus(true);
+        log(`await db.open()  // "${DB_NAME}" v${db.getVersion()}`);
+      }
+
+      function cell(text, cls) {
+        const td = document.createElement('td');
+        td.textContent = text ?? '';
+        if (cls) td.className = cls;
+        return td;
+      }
+
+      function emptyRow(tbody, cols, text) {
+        const tr = document.createElement('tr');
+        const td = cell(text, 'empty');
+        td.colSpan = cols;
+        tr.append(td);
+        tbody.replaceChildren(tr);
+      }
+
+      async function render() {
+        const users = await db.getAll('users');
+        $('count').textContent = `${users.length} record${users.length === 1 ? '' : 's'}`;
+        const tbody = $('rows');
+        if (!users.length) {
+          emptyRow(tbody, 6, 'No records yet. Seed sample data or add a user.');
+          return;
+        }
+        tbody.replaceChildren(
+          ...users.map((u) => {
+            const tr = document.createElement('tr');
+            tr.append(cell(u.id, 'num'), cell(u.name), cell(u.email), cell(u.age, 'num'), cell(u.city));
+            const actions = document.createElement('td');
+            const edit = document.createElement('button');
+            edit.className = 'link';
+            edit.textContent = 'Edit';
+            edit.onclick = () => editRow(tr, u);
+            const del = document.createElement('button');
+            del.className = 'link danger';
+            del.textContent = 'Delete';
+            del.onclick = () =>
+              run('delete', async () => {
+                await db.delete('users', u.id);
+                log(`await db.delete('users', ${u.id})`);
+                await render();
+              });
+            actions.append(edit, del);
+            tr.append(actions);
+            return tr;
+          })
+        );
+      }
+
+      function editRow(tr, user) {
+        const inputs = ['name', 'email', 'age', 'city'].map((field) => {
+          const input = document.createElement('input');
+          input.value = user[field];
+          if (field === 'age') input.type = 'number';
+          input.setAttribute('aria-label', field);
+          return input;
+        });
+        const save = document.createElement('button');
+        save.className = 'link';
+        save.textContent = 'Save';
+        save.onclick = () =>
+          run('put', async () => {
+            const [name, email, age, city] = inputs.map((i) => i.value.trim());
+            const updated = { ...user, name, email, age: Number(age), city };
+            await db.put('users', updated);
+            log(`await db.put('users', { id: ${user.id}, ... })`);
+            await render();
+          });
+        const cancel = document.createElement('button');
+        cancel.className = 'link';
+        cancel.textContent = 'Cancel';
+        cancel.onclick = render;
+        const actions = document.createElement('td');
+        actions.append(save, cancel);
+        tr.replaceChildren(cell(user.id, 'num'), ...inputs.map((i) => {
+          const td = document.createElement('td');
+          td.append(i);
+          return td;
+        }), actions);
+        inputs[0].focus();
+      }
+
+      // Query builder
+      const NEEDS_A = new Set(['only', 'lessThan', 'greaterThan', 'between', 'startsWith']);
+
+      function syncQueryInputs() {
+        const range = $('q-range').value;
+        $('q-a-wrap').classList.toggle('hidden', !NEEDS_A.has(range));
+        $('q-b-wrap').classList.toggle('hidden', range !== 'between');
+        $('q-a').previousElementSibling.textContent = range === 'between' ? 'From' : 'Value';
+        updateCode();
+      }
+
+      function coerce(raw) {
+        const index = $('q-index').value;
+        // age and id are numbers; everything else is a string
+        if (index === 'age' || index === '' ) {
+          const n = Number(raw);
+          return raw.trim() !== '' && !Number.isNaN(n) ? n : raw;
+        }
+        return raw;
+      }
+
+      function readQuery() {
+        const range = $('q-range').value;
+        const a = coerce($('q-a').value);
+        const b = coerce($('q-b').value);
+        const opts = {};
+        const src = [];
+        if ($('q-index').value) {
+          opts.index = $('q-index').value;
+          src.push(`index: '${opts.index}'`);
+        }
+        if (range !== 'all') {
+          if (range === 'startsWith' && typeof a !== 'string') {
+            throw new Error('startsWith needs a string index (email or city)');
+          }
+          opts.range = range === 'between' ? createKeyRange.between(a, b) : createKeyRange[range](a);
+          const args = range === 'between' ? [a, b] : [a];
+          src.push(`range: createKeyRange.${range}(${args.map((v) => JSON.stringify(v)).join(', ')})`);
+        }
+        if ($('q-dir').value === 'prev') {
+          opts.direction = 'prev';
+          src.push(`direction: 'prev'`);
+        }
+        const limit = parseInt($('q-limit').value, 10);
+        if (limit > 0) {
+          opts.limit = limit;
+          src.push(`limit: ${limit}`);
+        }
+        const offset = parseInt($('q-offset').value, 10);
+        if (offset > 0) {
+          opts.offset = offset;
+          src.push(`offset: ${offset}`);
+        }
+        const code = src.length
+          ? `const users = await db.query('users', {\n  ${src.join(',\n  ')},\n});`
+          : `const users = await db.query('users');`;
+        return { opts, code };
+      }
+
+      function updateCode() {
+        try {
+          $('q-code').textContent = readQuery().code;
+        } catch (err) {
+          $('q-code').textContent = `// ${err.message}`;
+        }
+      }
+
+      async function runQuery() {
+        const { opts } = readQuery();
+        const start = performance.now();
+        const results = await db.query('users', opts);
+        const ms = (performance.now() - start).toFixed(1);
+        $('q-meta').textContent = `${results.length} result${results.length === 1 ? '' : 's'} in ${ms} ms`;
+        const tbody = $('q-rows');
+        if (!results.length) {
+          emptyRow(tbody, 5, 'No matches.');
+          return;
+        }
+        tbody.replaceChildren(
+          ...results.map((u) => {
+            const tr = document.createElement('tr');
+            tr.append(cell(u.id, 'num'), cell(u.name), cell(u.email), cell(u.age, 'num'), cell(u.city));
+            return tr;
+          })
+        );
+      }
+
+      // Wire up
+      $('add-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        run('add', async () => {
+          const user = {
+            name: $('f-name').value.trim(),
+            email: $('f-email').value.trim(),
+            age: Number($('f-age').value),
+            city: $('f-city').value.trim(),
+          };
+          const id = await db.add('users', user);
+          log(`await db.add('users', { name: ${JSON.stringify(user.name)}, ... })  // → ${id}`);
+          e.target.reset();
+          await render();
+        });
+      });
+
+      $('seed').onclick = () =>
+        run('bulkPut', async () => {
+          const existing = new Set((await db.getAll('users')).map((u) => u.email));
+          const fresh = SAMPLE.filter((u) => !existing.has(u.email));
+          if (!fresh.length) {
+            log('Sample data is already there');
+            return;
+          }
+          const keys = await db.bulkPut('users', fresh);
+          log(`await db.bulkPut('users', [...${keys.length} users])  // one transaction`);
+          await render();
+        });
+
+      $('clear').onclick = () =>
+        run('clear', async () => {
+          await db.clear('users');
+          log(`await db.clear('users')`);
+          await render();
+          $('q-rows').replaceChildren();
+          $('q-meta').textContent = '';
+        });
+
+      $('drop').onclick = () =>
+        run('deleteDatabase', async () => {
+          db.close();
+          setStatus(false);
+          await IndexedDatabase.deleteDatabase(DB_NAME);
+          log(`await IndexedDatabase.deleteDatabase('${DB_NAME}')`);
+          await open();
+          await render();
+          $('q-rows').replaceChildren();
+          $('q-meta').textContent = '';
+        });
+
+      $('query-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        run('query', runQuery);
+      });
+      for (const id of ['q-index', 'q-range', 'q-dir']) $(id).addEventListener('change', syncQueryInputs);
+      for (const id of ['q-a', 'q-b', 'q-limit', 'q-offset']) $(id).addEventListener('input', updateCode);
+
+      if (!isIndexedDBSupported()) {
+        log('IndexedDB is not available in this browser (private mode can disable it).', true);
+      } else {
+        run('open', async () => {
+          await open();
+          if ((await db.count('users')) === 0) {
+            await db.bulkPut('users', SAMPLE);
+            log(`Seeded ${SAMPLE.length} sample users`);
+          }
+          await render();
+          syncQueryInputs();
+          await runQuery();
+        });
+      }
+    </script>
+  </body>
+</html>

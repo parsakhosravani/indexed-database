@@ -24,6 +24,8 @@ export interface IndexConfig {
 
 export interface QueryOptions {
   index?: string;
+  /** Only visit keys (or index values, when `index` is set) in this range */
+  range?: IDBValidKey | IDBKeyRange;
   direction?: IDBCursorDirection;
   limit?: number;
   offset?: number;
